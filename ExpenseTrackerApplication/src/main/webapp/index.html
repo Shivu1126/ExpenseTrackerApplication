@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<style>
+* {
+	box-sizing: border-box;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+
+body {
+	background: #f7f9fc;
+	margin: 0;
+	padding: 30px;
+	color: #333;
+}
+
+h2 {
+	color: #2c3e50;
+	border-left: 5px solid #3498db;
+	padding-left: 10px;
+}
+
+form {
+	background: #fff;
+	padding: 20px;
+	margin-bottom: 30px;
+	border-radius: 10px;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+	max-width: 500px;
+}
+
+input[type="number"], input[type="text"], input[type="date"], select {
+	width: 100%;
+	padding: 10px;
+	margin: 10px 0 15px;
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	transition: border 0.3s;
+}
+
+input:focus, select:focus {
+	border-color: #3498db;
+	outline: none;
+}
+
+button {
+	background-color: #3498db;
+	color: white;
+	border: none;
+	padding: 10px 15px;
+	margin: 5px 5px 10px 0;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.3s;
+}
+
+button:hover {
+	background-color: #2980b9;
+}
+
+#categoryDialog {
+	background: #fff;
+	padding: 15px 20px;
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	max-width: 300px;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+	margin-top: 10px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	border-radius: 10px;
+	overflow: hidden;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+th, td {
+	padding: 12px 15px;
+	text-align: left;
+}
+
+th {
+	background-color: #2980b9;
+	color: white;
+}
+
+tr:nth-child(even) {
+	background-color: #f2f2f2;
+}
+
+tr:hover {
+	background-color: #eaf2fb;
+}
+
+h3 {
+	margin-top: 15px;
+	color: #2c3e50;
+}
+
+#historyTable {
+	max-width: 900px;
+}
+
+</style>
+
+<meta charset="UTF-8">
+<title>Expense Tracker</title>
+</head>
+<body>
+	<h2>Add Expense</h2>
+	<form id="expenseForm">
+		Amount: <input type="number" name="amount" required /><br />
+
+		Category: <select name="categoryId" id="categorySelect" required>
+			<option disabled selected>Loading...</option>
+		</select>
+		<!-- 		<button type="button" id="addCategoryBtn">Add Category</button> -->
+		<br /> Description: <input type="text" name="description" required /><br />
+		Date: <input type="date" name="date" required /><br />
+		<button type="submit">Add Expense</button>
+	</form>
+	<div id="categoryOverlay" class="modal-overlay" hidden>
+		<div id="categoryDialog" class="modal-dialog">
+			<h3>Add New Category</h3>
+			<label>Category Name:</label> <input type="text" id="newCategoryInput" /><br /><br />
+			<button id="addCategoryConfirmBtn">Add</button>
+			<button id="cancelCategoryBtn">Cancel</button>
+		</div>
+	</div>
+	<hr />
+
+	<h2>Expense History</h2>
+	<div id="historyTable">Loading...</div>
+
+	<script>
+	
+		const categoryOverlay = document.getElementById('categoryOverlay');
+	  	const categoryDialog = document.getElementById('categoryDialog');
+	  	const newCategoryInput = document.getElementById('newCategoryInput');
+	  	const addCategoryConfirmBtn = document.getElementById('addCategoryConfirmBtn');
+	  	const cancelCategoryBtn = document.getElementById('cancelCategoryBtn');
+	  	const categorySelect = document.getElementById('categorySelect');
+
+// 		addCategoryBtn.addEventListener('click', () => {
+// 		  newCategoryInput.value = '';
+// 		  categoryDialog.hidden = false;
+// 		}); 
+		let userInteractedWithCategory = false;
+		categorySelect.addEventListener('mousedown', () => {
+			 userInteractedWithCategory = true;
+		});
+		categorySelect.addEventListener('focus', () => {
+			  userInteractedWithCategory = true;
+			});
+		categorySelect.addEventListener('change', function () {
+// 			console.log('Change triggered. Value:', this.value, 'User interacted?', userInteractedWithCategory);
+			 
+			  if (this.value === 'add_new' && userInteractedWithCategory) {
+			    this.selectedIndex = 0; // reset selection
+			    newCategoryInput.value = '';
+			    categoryOverlay.hidden = false;
+			    newCategoryInput.focus();
+			  }
+			  userInteractedWithCategory = false;
+		});
+		
+		cancelCategoryBtn.addEventListener('click', () => {
+		  categoryOverlay.hidden = true;
+		});
+		
+		addCategoryConfirmBtn.addEventListener('click', async () => {
+		  const newCategory = newCategoryInput.value.trim();
+		  if (newCategory) {
+		    const formData	 = new URLSearchParams()
+		    formData.append('categoryName', newCategory);
+		    const res = await fetch('/ExpenseTrackerApplication/add-category', {
+		        method: 'POST',
+		        body: formData
+		      });
+		    if(res.ok){
+		    	categoryOverlay.hidden = true;
+		    	await fetchCategories();
+		    	const options = Array.from(categorySelect.options);
+		        const added = options.find(opt => opt.textContent === newCategory);
+		        if (added) categorySelect.value = added.value;
+		    }
+		    else{
+		    	alert('This category already exist !!!')
+		    }
+		    	
+		  } else {
+		    alert('Please enter a category name.');
+		  }
+		});
+
+		
+	
+	async function fetchCategories() {
+		  const res = await fetch('/ExpenseTrackerApplication/get-categories');
+		  if (!res.ok) {
+			  alert("Failed to fetch categories");
+			  return;
+		  }
+		  const data = await res.json();
+		  if (data.length === 0) {
+			  select.innerHTML = "<option disabled selected>No categories available</option>";
+			  return;
+			}
+
+		  const select = document.getElementById("categorySelect");
+		  select.innerHTML = ""; 
+		  
+		  const defaultOpt = document.createElement("option");
+		  defaultOpt.disabled = true;
+		  defaultOpt.textContent = "-- Select Category --";
+		  defaultOpt.selected = true;
+		  select.appendChild(defaultOpt);
+
+		  data.forEach(cat => {
+		    const option = document.createElement("option");
+		    option.value = cat.categoryId;
+		    option.textContent = cat.categoryName;
+		    select.appendChild(option);
+		  });
+		  
+		  const addOption = document.createElement("option");
+		  addOption.value = "add_new";
+		  addOption.textContent = "➕ Add new category...";
+		  select.appendChild(addOption);
+		}	
+	
+    async function fetchExpenses() {
+      const res = await fetch('/ExpenseTrackerApplication/get-expenses');
+      const data = await res.json();
+      if (data.length === 0) {
+    	  document.getElementById("historyTable").innerHTML = "<p>No expenses found.</p>";
+    	  return;
+    	}
+      let total = 0;
+
+      let table = `<table border="1">
+        <tr><th>Date</th><th>Amount</th><th>Category</th><th>Note</th><th>Action</th></tr>`;
+
+      data.forEach(expense => {
+    	
+        total += expense.amount;
+        
+        table += `<tr data-expense-id="${expense.expenseId}">
+                    <td>${expense.date.toString().split("-").reverse().join("/")}</td>
+                    <td>${expense.amount}</td>
+                    <td>${expense.categoryName}</td>
+                    <td>${expense.description}</td>
+                    <td>
+                    	<button onclick="editExpense(this)">Edit</button>
+                    	<button onclick="deleteExpense(this)">Delete</button>
+                    </td>
+                  </tr>`;
+      });
+
+      table += `</table><h3>Total Expense: ₹${total.toFixed(2)}</h3>`;
+      document.getElementById("historyTable").innerHTML = table;
+    }
+    
+    
+    async function deleteExpense(btn){
+    	
+    	const row = btn.closest("tr");
+    	const id = row.dataset.expenseId;  
+    	const numericId = parseInt(id);
+    	const res = await fetch('/ExpenseTrackerApplication/delt-expense', { 
+    	  method: 'DELETE',
+    	  headers: {
+    		    'Content-Type': 'application/json'
+    		  },
+    	  body: JSON.stringify({ expenseId: numericId })
+    	});
+    	
+    	if(res.ok)
+    		fetchExpenses();
+    	const data = await res.json();
+		alert(data.message);
+    }
+
+    document.getElementById("expenseForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      if (formData.get("amount") <= 0) {
+    	  alert("Amount should be greater than 0");
+    	  return;
+    	}
+      const res = await fetch('/ExpenseTrackerApplication/add-expense', {
+        method: 'POST',
+        body: new URLSearchParams(formData)
+      });
+      if(res.ok){
+    	  alert("Expense Added Successfully..")
+      }
+      this.reset();
+      fetchExpenses(); 
+    });
+    fetchCategories();
+    fetchExpenses(); 
+  </script>
+</body>
+</html>
